@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Country or Cap</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+        }
+
+        #game-container {
+            text-align: center;
+            margin-top: 50px;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        #country-name {
+            font-size: 28px;
+            margin: 20px;
+            opacity: 0;
+            transition: opacity 0.5s ease-in;
+        }
+
+        #country-name.show {
+            opacity: 1;
+        }
+
+        #lives,
+        #round,
+        #timer {
+            font-size: 18px;
+            margin: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            font-size: 18px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        #country-btn {
+            background-color: #2196F3;
+        }
+
+        #country-btn:hover {
+            background-color: #1e87db;
+        }
+
+        #cap-btn {
+            background-color: #f44336;
+        }
+
+        #cap-btn:hover {
+            background-color: #da190b;
+        }
+
+        #game-over {
+            text-align: center;
+            margin-top: 50px;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        #game-over h2 {
+            color: #f44336;
+        }
+
+        #restart-btn {
+            background-color: #4CAF50;
+        }
+
+        #restart-btn:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="game-container">
+        <div id="lives">Lives: 3</div>
+        <div id="round">Round: 1</div>
+        <div id="timer">Time: 10</div>
+        <div id="country-name"></div>
+        <button id="country-btn">Country</button>
+        <button id="cap-btn">Cap</button>
+    </div>
+    <div id="game-over" style="display: none;">
+        <h2>Game Over</h2>
+        <p>Your score: <span id="score"></span></p>
+        <button id="restart-btn">Restart</button>
+    </div>
+    <script>
+        let realCountries = [];
+        let fakeCountries = [];
+        let lives = 3;
+        let round = 1;
+        let score = 0;
+        let timer = 10;
+        let intervalId;
+        let currentName;
+        let isReal;
+
+        async function loadCountries() {
+            try {
+                const realResponse = await fetch('https://2lpuwq3gul.ufs.sh/f/DnKFb8EsKaePWpHb6ctqaKPNFs64yBeI9hUr0oiVpXRkdwGS');
+                realCountries = await realResponse.json();
+                const fakeResponse = await fetch('https://2lpuwq3gul.ufs.sh/f/DnKFb8EsKaeP7ZQPfEqj4qMEItxlTpsAocReDrzWYB1J8uvy');
+                fakeCountries = await fakeResponse.json();
+            } catch (error) {
+                console.error('Error loading countries:', error);
+                alert('Failed to load country data. Please ensure real.json and fake.json are available.');
+            }
+        }
+
+        function startRound() {
+            isReal = Math.random() < 0.5;
+            const countries = isReal ? realCountries : fakeCountries;
+            currentName = countries[Math.floor(Math.random() * countries.length)].Name;
+            const countryNameElement = document.getElementById('country-name');
+            countryNameElement.textContent = currentName;
+            countryNameElement.classList.remove('show');
+            setTimeout(() => countryNameElement.classList.add('show'), 10);
+            timer = 10;
+            const timerElement = document.getElementById('timer');
+            timerElement.textContent = `Time: ${timer}`;
+            timerElement.style.color = 'black';
+            document.getElementById('round').textContent = `Round: ${round}`;
+            clearInterval(intervalId); // Ensure any existing interval is cleared
+            intervalId = setInterval(updateTimer, 1000);
+        }
+
+        function updateTimer() {
+            timer--;
+            const timerElement = document.getElementById('timer');
+            timerElement.textContent = `Time: ${timer}`;
+            if (timer <= 5) {
+                timerElement.style.color = 'red';
+            }
+            if (timer <= 0) {
+                clearInterval(intervalId);
+                handleIncorrect();
+            }
+        }
+
+        function handleCorrect() {
+            score++;
+            round++;
+            document.getElementById('country-name').textContent = 'Correct!';
+            setTimeout(startRound, 1000);
+        }
+
+        function handleIncorrect() {
+            lives--;
+            document.getElementById('lives').textContent = `Lives: ${lives}`;
+            document.getElementById('country-name').textContent = 'Incorrect!';
+            if (lives > 0) {
+                round++;
+                setTimeout(startRound, 1000);
+            } else {
+                setTimeout(endGame, 1000);
+            }
+        }
+
+        function endGame() {
+            document.getElementById('game-container').style.display = 'none';
+            document.getElementById('game-over').style.display = 'block';
+            document.getElementById('score').textContent = score;
+        }
+
+        document.getElementById('country-btn').addEventListener('click', () => {
+            clearInterval(intervalId);
+            if (isReal) {
+                handleCorrect();
+            } else {
+                handleIncorrect();
+            }
+        });
+
+        document.getElementById('cap-btn').addEventListener('click', () => {
+            clearInterval(intervalId);
+            if (!isReal) {
+                handleCorrect();
+            } else {
+                handleIncorrect();
+            }
+        });
+
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            lives = 3;
+            round = 1;
+            score = 0;
+            document.getElementById('lives').textContent = `Lives: ${lives}`;
+            document.getElementById('round').textContent = `Round: ${round}`;
+            document.getElementById('game-over').style.display = 'none';
+            document.getElementById('game-container').style.display = 'block';
+            startRound();
+        });
+
+        window.onload = async () => {
+            await loadCountries();
+            if (realCountries.length > 0 && fakeCountries.length > 0) {
+                startRound();
+            } else {
+                document.getElementById('country-name').textContent = 'Error: Country data not loaded.';
+            }
+        };
+    </script>
+</body>
+
+</html>
