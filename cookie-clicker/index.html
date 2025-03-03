@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cookie Clicker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f0e8d9;
+            /* Warm beige background */
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #8b4513;
+            /* Chocolate brown */
+            font-size: 36px;
+        }
+
+        #cookie-display {
+            font-size: 28px;
+            margin: 20px 0;
+            color: #5c4033;
+        }
+
+        #cookie-button {
+            font-size: 48px;
+            /* Large cookie emoji */
+            padding: 20px;
+            background-color: #deb887;
+            /* Burlywood */
+            border: none;
+            border-radius: 50%;
+            /* Circular button */
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        #cookie-button:hover {
+            background-color: #cd853f;
+            /* Darker on hover */
+        }
+
+        #cookie-button:active {
+            transform: scale(1.1);
+            /* Slight grow on click */
+        }
+
+        #upgrades {
+            margin: 20px 0;
+        }
+
+        #upgrades h2 {
+            color: #8b4513;
+        }
+
+        #upgrades button {
+            margin: 10px;
+            padding: 10px 20px;
+            background-color: #8b4513;
+            /* Brown */
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.2s;
+        }
+
+        #upgrades button:hover {
+            background-color: #a0522d;
+            /* Lighter brown on hover */
+        }
+
+        #stats p {
+            margin: 5px 0;
+            font-size: 18px;
+            color: #5c4033;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Cookie Clicker</h1>
+    <div id="cookie-display">Cookies: 0.0</div>
+    <button id="cookie-button">🍪 Bake Cookie</button>
+    <div id="upgrades">
+        <h2>Upgrades</h2>
+        <button id="manual-upgrade">Upgrade Baking Mastery Lv.0 (Cost: 10)</button>
+        <button id="auto-clicker-buy">Buy Cookie Golem (Cost: 20)</button>
+        <button id="auto-upgrade">Perform Arcane Ritual Lv.0 (Cost: 100)</button>
+    </div>
+    <div id="stats">
+        <p>Cookies per click: 1</p>
+        <p>Cookie Golems: 0</p>
+        <p>Cookies per second: 0.0</p>
+    </div>
+    <script>
+        // Element references
+        const cookieDisplay = document.getElementById('cookie-display');
+        const cookieButton = document.getElementById('cookie-button');
+        const manualUpgradeButton = document.getElementById('manual-upgrade');
+        const autoClickerBuyButton = document.getElementById('auto-clicker-buy');
+        const autoUpgradeButton = document.getElementById('auto-upgrade');
+        const stats = document.getElementById('stats');
+
+        // Game variables
+        let cookies = 0;
+        let cookiesPerClick = 1;
+        let manualUpgradeLevel = 0;
+        let manualUpgradeCost = 10;
+        let autoClickers = 0;
+        let autoClickerCost = 20;
+        let autoMultiplier = 1;
+        let autoUpgradeLevel = 0;
+        let autoUpgradeCost = 100;
+
+        // Update the display
+        function updateDisplay() {
+            cookieDisplay.textContent = `Cookies: ${cookies.toFixed(1)}`;
+            manualUpgradeButton.textContent = `Upgrade Baking Mastery Lv.${manualUpgradeLevel} (Cost: ${manualUpgradeCost})`;
+            autoClickerBuyButton.textContent = `Buy Cookie Golem (Cost: ${autoClickerCost})`;
+            autoUpgradeButton.textContent = `Perform Arcane Ritual Lv.${autoUpgradeLevel} (Cost: ${autoUpgradeCost})`;
+            stats.innerHTML = `
+                <p>Cookies per click: ${cookiesPerClick}</p>
+                <p>Cookie Golems: ${autoClickers}</p>
+                <p>Cookies per second: ${(autoClickers * autoMultiplier).toFixed(1)}</p>
+            `;
+        }
+
+        // Manual click event
+        cookieButton.addEventListener('click', () => {
+            cookies += cookiesPerClick;
+            updateDisplay();
+        });
+
+        // Manual upgrade event
+        manualUpgradeButton.addEventListener('click', () => {
+            if (cookies >= manualUpgradeCost) {
+                cookies -= manualUpgradeCost;
+                manualUpgradeLevel++;
+                cookiesPerClick *= 2; // Double cookies per click
+                manualUpgradeCost = 10 * Math.pow(5, manualUpgradeLevel); // Cost increases by 5x
+                updateDisplay();
+            }
+        });
+
+        // Buy automatic clicker event
+        autoClickerBuyButton.addEventListener('click', () => {
+            if (cookies >= autoClickerCost) {
+                cookies -= autoClickerCost;
+                autoClickers++;
+                autoClickerCost = Math.ceil(autoClickerCost * 1.2); // Cost increases by 20%
+                updateDisplay();
+            }
+        });
+
+        // Automatic clicker upgrade event
+        autoUpgradeButton.addEventListener('click', () => {
+            if (cookies >= autoUpgradeCost) {
+                cookies -= autoUpgradeCost;
+                autoUpgradeLevel++;
+                autoMultiplier *= 2; // Double output of all golems
+                autoUpgradeCost = 100 * Math.pow(5, autoUpgradeLevel); // Cost increases by 5x
+                updateDisplay();
+            }
+        });
+
+        // Automatic cookie generation (every 100ms, adding 0.1s worth of cookies)
+        setInterval(() => {
+            cookies += (autoClickers * autoMultiplier) / 10;
+            updateDisplay();
+        }, 100);
+
+        // Initial display update
+        updateDisplay();
+    </script>
+</body>
+
+</html>
