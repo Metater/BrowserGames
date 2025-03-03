@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D FPS Game with Block Tint and Win Condition</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #instructions {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-family: Arial;
+            text-align: center;
+        }
+
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: Arial;
+            font-size: 20px;
+        }
+
+        #health {
+            position: absolute;
+            top: 40px;
+            left: 10px;
+            color: white;
+            font-family: Arial;
+            font-size: 20px;
+        }
+
+        #blockCooldown {
+            position: absolute;
+            top: 70px;
+            left: 10px;
+            color: white;
+            font-family: Arial;
+            font-size: 16px;
+        }
+
+        #dashCooldown {
+            position: absolute;
+            top: 90px;
+            left: 10px;
+            color: white;
+            font-family: Arial;
+            font-size: 16px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="instructions">Click to Start<br>Use W,A,S,D to move<br>Spacebar to dash (3s cooldown)<br>Right-click to
+        block (5s cooldown, 1s immunity)<br>Left-click to destroy blocks (max 5 units)<br>Destroy all blocks to
+        win!<br>Dodge enemy bullets!</div>
+    <div id="score">Score: 0</div>
+    <div id="health">Health: 100</div>
+    <div id="blockCooldown">Block: Ready</div>
+    <div id="dashCooldown">Dash: Ready</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // 2D overlay for tint
+        const overlayCanvas = document.createElement('canvas');
+        overlayCanvas.width = window.innerWidth;
+        overlayCanvas.height = window.innerHeight;
+        overlayCanvas.style.position = 'absolute';
+        overlayCanvas.style.top = '0';
+        overlayCanvas.style.left = '0';
+        overlayCanvas.style.pointerEvents = 'none';
+        document.body.appendChild(overlayCanvas);
+        const overlayCtx = overlayCanvas.getContext('2d');
+
+        // Audio setup
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playBeep(frequency, duration) {
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            oscillator.type = 'sine';
+            oscillator.frequency.value = frequency;
+            gainNode.gain.value = 0.1;
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + duration);
+        }
+
+        // Ground
+        const groundGeometry = new THREE.PlaneGeometry(100, 100);
+        const groundMaterial = new THREE.MeshBasicMaterial({ color: 0xaaaaaa });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        scene.add(ground);
+
+        // Destructible blocks
+        const blockGeometry = new THREE.BoxGeometry(2, 2, 2);
+        const blockMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const blocks = [];
+        for (let i = -10; i <= 10; i += 5) {
+            for (let j = -10; j <= 10; j += 5) {
+                const block = new THREE.Mesh(blockGeometry, blockMaterial);
+                block.position.set(i, 1, j);
+                scene.add(block);
+                blocks.push(block);
+            }
+        }
+
+        // Enemies
+        const enemyGeometry = new THREE.BoxGeometry(2, 2, 2);
+        const enemyMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+        const enemies = [];
+        for (let i = 0; i < 5; i++) {
+            const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
+            enemy.position.set(
+                Math.random() * 80 - 40,
+                1,
+                Math.random() * 80 - 40
+            );
+            enemy.shootCooldown = Math.random() * 2;
+            enemy.heatSeekCooldown = Math.random() * 5;
+            scene.add(enemy);
+            enemies.push(enemy);
+        }
+
+        // Bullets
+        const bulletGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+        const bulletMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        const heatSeekGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+        const heatSeekMaterial = new THREE.MeshBasicMaterial({ color: 0xff00ff });
+        const bullets = [];
+
+        // Character (camera)
+        camera.position.set(0, 1.6, 5);
+        let pitch = 0;
+        let yaw = 0;
+        let health = 100;
+        const healthDisplay = document.getElementById('health');
+        let isBlocking = false;
+        let blockDuration = 0;
+        let blockCooldown = 0;
+        let isDashing = false;
+        let dashDuration = 0;
+        let dashCooldown = 0;
+
+        // UI elements
+        const blockCooldownDisplay = document.getElementById('blockCooldown');
+        const dashCooldownDisplay = document.getElementById('dashCooldown');
+
+        // Movement and ability controls
+        const moveSpeed = 5;
+        const dashSpeed = 15;
+        const keys = { KeyW: false, KeyA: false, KeyS: false, KeyD: false, Space: false };
+
+        document.addEventListener('keydown', (event) => {
+            const key = event.code;
+            if (key === 'KeyW') keys.KeyW = true;
+            if (key === 'KeyA') keys.KeyA = true;
+            if (key === 'KeyS') keys.KeyS = true;
+            if (key === 'KeyD') keys.KeyD = true;
+            if (key === 'Space') keys.Space = true;
+        });
+
+        document.addEventListener('keyup', (event) => {
+            const key = event.code;
+            if (key === 'KeyW') keys.KeyW = false;
+            if (key === 'KeyA') keys.KeyA = false;
+            if (key === 'KeyS') keys.KeyS = false;
+            if (key === 'KeyD') keys.KeyD = false;
+            if (key === 'Space') keys.Space = false;
+        });
+
+        // Mouse look controls
+        let isLocked = false;
+        document.addEventListener('click', () => {
+            renderer.domElement.requestPointerLock();
+        });
+        document.addEventListener('pointerlockchange', () => {
+            isLocked = document.pointerLockElement === renderer.domElement;
+            document.getElementById('instructions').style.display = isLocked ? 'none' : 'block';
+        });
+        document.addEventListener('mousemove', (event) => {
+            if (isLocked) {
+                const sensitivity = 0.002;
+                yaw -= event.movementX * sensitivity;
+                pitch -= event.movementY * sensitivity;
+                pitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch));
+                camera.rotation.order = 'YXZ';
+                camera.rotation.set(pitch, yaw, 0);
+            }
+        });
+
+        // Raycaster for block destruction and block ability
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2(0, 0);
+        let score = 0;
+        const scoreDisplay = document.getElementById('score');
+        const maxReach = 5;
+        document.addEventListener('mousedown', (event) => {
+            if (!isLocked) return;
+            if (event.button === 0) { // Left click to destroy
+                raycaster.setFromCamera(mouse, camera);
+                const intersects = raycaster.intersectObjects(blocks);
+                if (intersects.length > 0 && intersects[0].distance <= maxReach) {
+                    const hit = intersects[0].object;
+                    scene.remove(hit);
+                    blocks.splice(blocks.indexOf(hit), 1);
+                    score += 1;
+                    scoreDisplay.textContent = `Score: ${score}`;
+                    playBeep(800, 0.1); // High-pitched beep
+                    if (blocks.length === 0) {
+                        alert("You Win! All blocks destroyed! Final Score: " + score);
+                        health = 100;
+                        score = 0;
+                        healthDisplay.textContent = `Health: ${health}`;
+                        scoreDisplay.textContent = `Score: ${score}`;
+                        // Respawn blocks for replay
+                        for (let i = -10; i <= 10; i += 5) {
+                            for (let j = -10; j <= 10; j += 5) {
+                                const block = new THREE.Mesh(blockGeometry, blockMaterial);
+                                block.position.set(i, 1, j);
+                                scene.add(block);
+                                blocks.push(block);
+                            }
+                        }
+                    }
+                }
+            } else if (event.button === 2 && blockCooldown <= 0) { // Right click to block
+                isBlocking = true;
+                blockDuration = 1;
+                blockCooldown = 5;
+                playBeep(600, 0.3); // Medium-pitched beep
+            }
+        });
+
+        // Enemy behavior
+        const enemySpeed = 1;
+        const bulletSpeed = 4;
+        const heatSeekSpeed = 6;
+        const shootInterval = 2;
+        const heatSeekInterval = 5;
+        function updateEnemies(deltaTime) {
+            enemies.forEach(enemy => {
+                let direction = new THREE.Vector3();
+                direction.subVectors(camera.position, enemy.position);
+                direction.y = 0;
+                direction.normalize();
+                enemy.position.add(direction.multiplyScalar(enemySpeed * deltaTime));
+
+                enemy.shootCooldown -= deltaTime;
+                if (enemy.shootCooldown <= 0) {
+                    const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+                    bullet.position.copy(enemy.position.clone().add(new THREE.Vector3(0, 0.5, 0)));
+                    bullet.direction = new THREE.Vector3()
+                        .subVectors(camera.position, bullet.position)
+                        .normalize();
+                    bullet.lifetime = 3;
+                    scene.add(bullet);
+                    bullets.push(bullet);
+                    enemy.shootCooldown = shootInterval;
+                }
+
+                enemy.heatSeekCooldown -= deltaTime;
+                if (enemy.heatSeekCooldown <= 0) {
+                    const bullet = new THREE.Mesh(heatSeekGeometry, heatSeekMaterial);
+                    bullet.position.copy(enemy.position.clone().add(new THREE.Vector3(0, 0.5, 0)));
+                    bullet.isHeatSeeking = true;
+                    bullet.lifetime = 3;
+                    scene.add(bullet);
+                    bullets.push(bullet);
+                    enemy.heatSeekCooldown = heatSeekInterval;
+                }
+            });
+        }
+
+        // Bullet behavior
+        function updateBullets(deltaTime) {
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const bullet = bullets[i];
+
+                if (bullet.isHeatSeeking) {
+                    bullet.direction = new THREE.Vector3()
+                        .subVectors(camera.position, bullet.position)
+                        .normalize();
+                    bullet.position.add(bullet.direction.clone().multiplyScalar(heatSeekSpeed * deltaTime));
+                } else {
+                    bullet.position.add(bullet.direction.clone().multiplyScalar(bulletSpeed * deltaTime));
+                }
+
+                bullet.lifetime -= deltaTime;
+                if (bullet.lifetime <= 0) {
+                    scene.remove(bullet);
+                    bullets.splice(i, 1);
+                    continue;
+                }
+
+                const distance = bullet.position.distanceTo(camera.position);
+                if (distance < 1 && !isBlocking) {
+                    health -= 10;
+                    healthDisplay.textContent = `Health: ${health}`;
+                    playBeep(200, 0.2); // Low-pitched beep
+                    scene.remove(bullet);
+                    bullets.splice(i, 1);
+                    if (health <= 0) {
+                        alert("Game Over! Final Score: " + score);
+                        health = 100;
+                        score = 0;
+                        healthDisplay.textContent = `Health: ${health}`;
+                        scoreDisplay.textContent = `Score: ${score}`;
+                        // Respawn blocks after loss
+                        for (let i = -10; i <= 10; i += 5) {
+                            for (let j = -10; j <= 10; j += 5) {
+                                const block = new THREE.Mesh(blockGeometry, blockMaterial);
+                                block.position.set(i, 1, j);
+                                scene.add(block);
+                                blocks.push(block);
+                            }
+                        }
+                    }
+                    continue;
+                }
+
+                if (bullet.position.length() > 100) {
+                    scene.remove(bullet);
+                    bullets.splice(i, 1);
+                }
+            }
+        }
+
+        // Rendering and movement loop
+        let lastTime = performance.now();
+        function animate() {
+            requestAnimationFrame(animate);
+            const currentTime = performance.now();
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+
+            if (isLocked) {
+                const direction = new THREE.Vector3(0, 0, -1);
+                direction.applyQuaternion(camera.quaternion);
+                direction.y = 0;
+                direction.normalize();
+
+                const strafeDirection = new THREE.Vector3();
+                strafeDirection.crossVectors(direction, new THREE.Vector3(0, 1, 0)).normalize();
+
+                let moveDirection = new THREE.Vector3(0, 0, 0);
+                if (keys.KeyW) moveDirection.add(direction);
+                if (keys.KeyS) moveDirection.sub(direction);
+                if (keys.KeyA) moveDirection.sub(strafeDirection);
+                if (keys.KeyD) moveDirection.add(strafeDirection);
+
+                // Block ability
+                if (isBlocking) {
+                    blockDuration -= deltaTime;
+                    if (blockDuration <= 0) {
+                        isBlocking = false;
+                    }
+                    // Tint screen blue
+                    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                    overlayCtx.fillStyle = 'rgba(0, 0, 255, 0.3)';
+                    overlayCtx.fillRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                } else {
+                    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                }
+                blockCooldown -= deltaTime;
+                blockCooldownDisplay.textContent = blockCooldown <= 0 ? "Block: Ready" : `Block: ${(blockCooldown).toFixed(1)}s`;
+
+                // Dash ability
+                if (keys.Space && dashCooldown <= 0 && !isDashing) {
+                    isDashing = true;
+                    dashDuration = 0.2;
+                    dashCooldown = 3;
+                    playBeep(1000, 0.1); // High-pitched beep
+                }
+                if (isDashing) {
+                    dashDuration -= deltaTime;
+                    if (dashDuration <= 0) {
+                        isDashing = false;
+                    }
+                }
+                dashCooldown -= deltaTime;
+                dashCooldownDisplay.textContent = dashCooldown <= 0 ? "Dash: Ready" : `Dash: ${(dashCooldown).toFixed(1)}s`;
+
+                // Apply movement
+                if (moveDirection.length() > 0) {
+                    moveDirection.normalize();
+                    const speed = isDashing ? dashSpeed * deltaTime : moveSpeed * deltaTime;
+                    camera.position.add(moveDirection.multiplyScalar(speed));
+                }
+
+                updateEnemies(deltaTime);
+                updateBullets(deltaTime);
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        console.log("Starting animation");
+        animate();
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            overlayCanvas.width = window.innerWidth;
+            overlayCanvas.height = window.innerHeight;
+        });
+
+        renderer.render(scene, camera);
+    </script>
+</body>
+
+</html>
