@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sentence Builder</title>
+    <!-- Include Sortable.js from CDN -->
+    <script src="https://unpkg.com/sortablejs@1.14.0/Sortable.min.js"></script>
+    <style>
+        /* Style for the word bank */
+        #word-bank {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 10px;
+            background-color: #f0f0f0;
+        }
+
+        /* Style for the sentence area */
+        #sentence-area {
+            min-height: 200px;
+            border: 2px dashed gray;
+            padding: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        /* Style for word blocks */
+        .word {
+            padding: 5px 10px;
+            border: 1px solid black;
+            background-color: white;
+            cursor: move;
+        }
+    </style>
+</head>
+<body>
+    <h1>Sentence Builder</h1>
+    <p>Drag words from the word bank to the sentence area to build sentences. Double-click a word in the sentence area to remove it.</p>
+
+    <!-- Word Bank Section -->
+    <h2>Word Bank</h2>
+    <div id="word-bank">
+        <div class="word">I</div>
+        <div class="word">like</div>
+        <div class="word">apples</div>
+        <div class="word">and</div>
+        <div class="word">oranges</div>
+        <div class="word">bananas</div>
+        <div class="word">very</div>
+        <div class="word">much</div>
+    </div>
+
+    <!-- Sentence Area Section -->
+    <h2>Sentence Area</h2>
+    <div id="sentence-area"></div>
+
+    <!-- JavaScript to handle drag and drop -->
+    <script>
+        const wordBank = document.getElementById('word-bank');
+        const sentenceArea = document.getElementById('sentence-area');
+
+        // Initialize Sortable.js for the word bank
+        new Sortable(wordBank, {
+            group: {
+                name: 'words',
+                pull: 'clone' // Allow cloning words to sentence area
+            },
+            sort: false // Prevent reordering within word bank
+        });
+
+        // Initialize Sortable.js for the sentence area
+        new Sortable(sentenceArea, {
+            group: {
+                name: 'words',
+                put: true // Allow words to be dropped here
+            }
+            // Note: Reordering within sentence area is enabled by default
+        });
+
+        // Add double-click event to remove words from sentence area
+        sentenceArea.addEventListener('dblclick', function(event) {
+            if (event.target.classList.contains('word')) {
+                event.target.remove();
+            }
+        });
+    </script>
+</body>
+</html>

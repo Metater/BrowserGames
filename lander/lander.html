@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lunar Lander</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        canvas {
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <script>
+        // Get canvas and context
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Set canvas size to full screen
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Lander properties
+        let lander = {
+            x: canvas.width / 2,    // Start at center horizontally
+            y: 50,                  // Start near top
+            width: 20,              // Lander width
+            height: 30,             // Lander height
+            velocityX: 2,           // Horizontal speed
+            velocityY: 0,           // Vertical speed (positive is down)
+            fuel: 100,              // Starting fuel
+            thrusting: false        // Thrust state
+        };
+
+        // Game constants
+        const gravity = 0.05;         // Downward acceleration per frame
+        const thrust = 0.1;           // Upward acceleration per frame
+        const fuelConsumption = 0.2;  // Fuel used per frame when thrusting
+
+        // Game state
+        let gameOver = false;
+        let message = '';
+
+        // Landing pad properties
+        const pad = {
+            x: canvas.width / 2 - 50,  // Centered horizontally
+            y: canvas.height - 20,     // Near bottom of screen
+            width: 100,                // Wide enough to land on
+            height: 20                 // Pad thickness
+        };
+
+        // Touch event handlers
+        canvas.addEventListener('touchstart', () => {
+            if (gameOver) {
+                // Restart the game
+                lander.x = canvas.width / 2;
+                lander.y = 50;
+                lander.velocityX = 2;
+                lander.velocityY = 0;
+                lander.fuel = 100;
+                lander.thrusting = false;
+                gameOver = false;
+                message = '';
+            } else if (lander.fuel > 0) {
+                // Activate thrust if fuel remains
+                lander.thrusting = true;
+            }
+        });
+
+        canvas.addEventListener('touchend', () => {
+            lander.thrusting = false;
+        });
+
+        // Update game state
+        function update() {
+            if (gameOver) return;
+
+            // Apply gravity
+            lander.velocityY += gravity;
+
+            // Apply thrust if active and fuel remains
+            if (lander.thrusting && lander.fuel > 0) {
+                lander.velocityY -= thrust;
+                lander.fuel -= fuelConsumption;
+                if (lander.fuel < 0) lander.fuel = 0;
+            }
+
+            // Update position
+            lander.x += lander.velocityX;
+            lander.y += lander.velocityY;
+
+            // Wrap lander horizontally
+            if (lander.x > canvas.width) lander.x = 0;
+            if (lander.x < 0) lander.x = canvas.width;
+
+            // Check for landing or crash
+            if (lander.y + lander.height >= pad.y) {
+                if (lander.x >= pad.x && lander.x <= pad.x + pad.width) {
+                    // Lander is over the pad
+                    if (lander.velocityY < 2) {
+                        message = 'Success! You landed safely.';
+                    } else {
+                        message = 'Crash! Too fast.';
+                    }
+                } else {
+                    // Missed the pad
+                    message = 'Crash! Missed the pad.';
+                }
+                gameOver = true;
+            }
+        }
+
+        // Render the game
+        function render() {
+            // Clear canvas with black background
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw lander
+            ctx.fillStyle = 'white';
+            ctx.fillRect(lander.x - lander.width / 2, lander.y, lander.width, lander.height);
+
+            // Draw thrust effect
+            if (lander.thrusting && lander.fuel > 0) {
+                ctx.fillStyle = 'orange';
+                ctx.fillRect(lander.x - 5, lander.y + lander.height, 10, 10);
+            }
+
+            // Draw landing pad
+            ctx.fillStyle = 'green';
+            ctx.fillRect(pad.x, pad.y, pad.width, pad.height);
+
+            // Draw fuel display
+            ctx.fillStyle = 'white';
+            ctx.font = '20px Arial';
+            ctx.fillText(`Fuel: ${Math.floor(lander.fuel)}`, 10, 30);
+
+            // Draw game over message
+            if (gameOver) {
+                ctx.fillStyle = 'red';
+                ctx.font = '40px Arial';
+                ctx.fillText(message, canvas.width / 2 - 150, canvas.height / 2);
+                ctx.fillText('Touch to restart', canvas.width / 2 - 150, canvas.height / 2 + 50);
+            }
+        }
+
+        // Main game loop
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start the game
+        gameLoop();
+    </script>
+</body>
+
+</html>
