@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lunar Lander</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        canvas {
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let lander = {
+            x: canvas.width / 2,
+            y: 50,
+            width: 20,
+            height: 30,
+            velocityX: 0, // Will be randomized
+            velocityY: 0,
+            fuel: 100,
+            thrusting: false
+        };
+
+        const gravity = 0.05;
+        const thrust = 0.1;
+        const fuelConsumption = 0.2;
+
+        let gameOver = false;
+        let message = '';
+        let currentStreak = 0;
+        let bestStreak = 0;
+
+        const groundY = canvas.height - 150; // Ground level
+        const pad = {
+            x: 0,
+            y: groundY - 20, // Pad top = groundY - pad height
+            width: 100,
+            height: 20
+        };
+
+        function randomizePadPosition() {
+            pad.x = Math.random() * (canvas.width - pad.width);
+        }
+
+        function randomizeLanderVelocity() {
+            lander.velocityX = (Math.random() * 4) - 2; // Random between -2 and 2
+        }
+
+        randomizePadPosition();
+        randomizeLanderVelocity();
+
+        canvas.addEventListener('touchstart', () => {
+            if (gameOver) {
+                lander.x = canvas.width / 2;
+                lander.y = 50;
+                randomizeLanderVelocity(); // Randomize velocity on restart
+                lander.velocityY = 0;
+                lander.fuel = 100;
+                lander.thrusting = false;
+                gameOver = false;
+                message = '';
+                randomizePadPosition();
+            } else if (lander.fuel > 0) {
+                lander.thrusting = true;
+            }
+        });
+
+        canvas.addEventListener('touchend', () => {
+            lander.thrusting = false;
+        });
+
+        function update() {
+            if (gameOver) return;
+
+            lander.velocityY += gravity;
+
+            if (lander.thrusting && lander.fuel > 0) {
+                lander.velocityY -= thrust;
+                lander.fuel -= fuelConsumption;
+                if (lander.fuel < 0) lander.fuel = 0;
+            }
+
+            lander.x += lander.velocityX;
+            lander.y += lander.velocityY;
+
+            if (lander.x > canvas.width) lander.x = 0;
+            if (lander.x < 0) lander.x = canvas.width;
+
+            if (lander.y + lander.height >= groundY) {
+                if (lander.x >= pad.x && lander.x <= pad.x + pad.width) {
+                    if (lander.velocityY < 2) {
+                        message = 'Success! You landed safely.';
+                        currentStreak++;
+                        if (currentStreak > bestStreak) bestStreak = currentStreak;
+                    } else {
+                        message = 'Crash! Too fast.';
+                        currentStreak = 0;
+                    }
+                } else {
+                    message = 'Crash! Missed the pad.';
+                    currentStreak = 0;
+                }
+                gameOver = true;
+            }
+        }
+
+        function render() {
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = 'gray';
+            ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+
+            ctx.fillStyle = 'red';
+            ctx.fillRect(pad.x, pad.y, pad.width, pad.height);
+            ctx.fillStyle = 'white';
+            for (let i = 0; i < pad.width; i += 20) {
+                ctx.fillRect(pad.x + i, pad.y, 10, pad.height);
+            }
+
+            ctx.fillStyle = 'white';
+            ctx.fillRect(lander.x - lander.width / 2, lander.y, lander.width, lander.height);
+
+            if (lander.thrusting && lander.fuel > 0) {
+                ctx.fillStyle = 'orange';
+                ctx.fillRect(lander.x - 5, lander.y + lander.height, 10, 10);
+            }
+
+            ctx.fillStyle = 'white';
+            ctx.font = '24px Arial';
+            ctx.fillText(`Fuel: ${Math.floor(lander.fuel)}`, 10, 30);
+            ctx.fillText(`Streak: ${currentStreak}`, 10, 60);
+            ctx.fillText(`Best: ${bestStreak}`, 10, 90);
+
+            if (gameOver) {
+                ctx.fillStyle = 'red';
+                ctx.font = '40px Arial';
+                ctx.fillText(message, canvas.width / 2 - 150, canvas.height / 2);
+                ctx.fillText('Touch to restart', canvas.width / 2 - 150, canvas.height / 2 + 50);
+            }
+        }
+
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        gameLoop();
+    </script>
+</body>
+
+</html>
